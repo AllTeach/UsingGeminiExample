@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    android:id="@+id/main"
+    tools:context=".MainActivity">
+
+    <!-- Input Area -->
+    <EditText
+        android:id="@+id/editTextInput"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:hint="Enter text"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        android:layout_marginBottom="16dp" />
+
+    <!-- TextView for Results -->
+    <TextView
+        android:id="@+id/textViewResult"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Result will appear here"
+        android:textSize="16sp"
+        app:layout_constraintTop_toBottomOf="@id/editTextInput"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginBottom="16dp" />
+
+    <!-- ImageView -->
+    <ImageView
+        android:id="@+id/imageView"
+        android:layout_width="150dp"
+        android:layout_height="150dp"
+        android:src="@drawable/img"
+        app:layout_constraintTop_toBottomOf="@id/textViewResult"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Button to Send Text -->
+    <Button
+        android:id="@+id/buttonSendText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Send Text"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/imageView"
+        android:layout_marginTop="16dp" />
+
+    <!-- Button to Upload Image + Text -->
+    <Button
+        android:id="@+id/buttonUpload"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Upload Text and Image"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/buttonSendText"
+        android:layout_marginTop="8dp" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
