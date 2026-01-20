@@ -9,6 +9,9 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import androidx.activity.result.ActivityResultCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.usinggeminiexample.GeminiManager;
@@ -30,6 +33,18 @@ public class MainActivity extends AppCompatActivity {
         // Initialize UI components
         initUI();
 
+        mGetPicture = registerForActivityResult(
+                new ActivityResultContracts.TakePicturePreview(),
+                new ActivityResultCallback<Bitmap>() {
+                    @Override
+                    public void onActivityResult(Bitmap result) {
+                        // Handle the returned Bitmap
+                        ImageView myImageView = findViewById(R.id.imageView);
+                        myImageView.setImageBitmap(result);
+                    }
+                }
+        );
+
     }
 
     private void initUI() {
@@ -38,7 +53,7 @@ public class MainActivity extends AppCompatActivity {
         Button buttonSendText = findViewById(R.id.buttonSendText);
 
         // Initialize GeminiManager with API key
-        GeminiManager geminiManager = new GeminiManager("YOUR_API_KEY_HERE!!!!");
+        GeminiManager geminiManager = new GeminiManager(BuildConfig.GEMINI_API_KEY);
 
         // Set button click listener
         buttonSendText.setOnClickListener(v -> {
@@ -109,5 +124,17 @@ public class MainActivity extends AppCompatActivity {
             // Fallback in case of an error (like a safety block or empty response)
             return "Could not parse response: " + e.getMessage();
         }
+    }
+
+
+
+    private ActivityResultLauncher<Void> mGetPicture;
+
+
+
+
+    public void takePicture(View view) {
+
+        mGetPicture.launch(null);
     }
 }

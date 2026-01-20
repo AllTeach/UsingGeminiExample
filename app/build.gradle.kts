@@ -1,13 +1,23 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
 }
 
+// 1. Load the API Key from secrets.properties
+val secrets = Properties()
+val secretsFile = rootProject.file("secrets.properties")
+if (secretsFile.exists()) {
+    secretsFile.inputStream().use { secrets.load(it) }
+}
+val geminiApiKey = secrets.getProperty("GEMINI_API_KEY", "REPLACE_ME")
+
+
 
 android {
     namespace = "com.example.usinggeminiexample"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.usinggeminiexample"
@@ -17,6 +27,13 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // 2. Inject the key into BuildConfig
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+    }
+    // 3. Enable BuildConfig generation
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {
