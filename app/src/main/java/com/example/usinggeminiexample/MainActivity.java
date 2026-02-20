@@ -1,17 +1,15 @@
 package com.example.usinggeminiexample;
 
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.os.Bundle;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
-
-import com.example.usinggeminiexample.GeminiManager;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -26,10 +24,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-
         // Initialize UI components
         initUI();
-
     }
 
     private void initUI() {
@@ -68,8 +64,8 @@ public class MainActivity extends AppCompatActivity {
             ImageView myImageView = findViewById(R.id.imageView);
             Bitmap bitmap = ((BitmapDrawable) myImageView.getDrawable()).getBitmap();
             String inputText = editTextInput.getText().toString();
-            inputText = "answer only if the question relates to the image otherwise - answer that you don't support this," +
-                    "if the question relates - please answer in 4-5 short sentences maximum. Question: " + inputText;
+            inputText = "answer only if the question relates to the image otherwise - answer that you don't support this,"
+                    + "if the question relates - please answer in 4-5 short sentences maximum. Question: " + inputText;
             geminiManager.sendImageAndText(bitmap, inputText, response -> {
                 // If the response starts with "Error", show it as is
                 if (response.startsWith("Error")) {
@@ -85,7 +81,12 @@ public class MainActivity extends AppCompatActivity {
                     textViewResult.setText(cleanText);
                 });
             });
+        });
 
+        // Launch the Othello game activity
+        Button btnOthello = findViewById(R.id.buttonOthello);
+        btnOthello.setOnClickListener(v -> {
+            startActivity(new Intent(MainActivity.this, OthelloActivity.class));
         });
     }
 
