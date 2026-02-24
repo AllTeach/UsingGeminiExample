@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#1B5E20"
+    android:padding="8dp">
+
+    <!-- Status: whose turn / game-over message -->
+    <TextView
+        android:id="@+id/textViewStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Othello - Black's turn"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:gravity="center"
+        android:padding="8dp" />
+
+    <!-- Score row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="4dp">
+
+        <TextView
+            android:id="@+id/textViewBlackScore"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Black (Gemini): 2"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:layout_marginEnd="24dp" />
+
+        <TextView
+            android:id="@+id/textViewWhiteScore"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="White (You): 2"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+    </LinearLayout>
+
+    <!-- 8x8 board - cells added programmatically -->
+    <GridLayout
+        android:id="@+id/gridBoard"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:columnCount="8"
+        android:rowCount="8"
+        android:useDefaultMargins="false" />
+
+    <!-- Gemini thinking indicator -->
+    <TextView
+        android:id="@+id/textViewGeminiThinking"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Gemini is thinking..."
+        android:textColor="#FFFF00"
+        android:textSize="14sp"
+        android:gravity="center"
+        android:padding="6dp"
+        android:visibility="gone" />
+
+    <!-- New-game button -->
+    <Button
+        android:id="@+id/buttonNewGame"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="New Game"
+        android:backgroundTint="#388E3C"
+        android:textColor="#FFFFFF"
+        android:layout_marginTop="6dp" />
+
+</LinearLayout>

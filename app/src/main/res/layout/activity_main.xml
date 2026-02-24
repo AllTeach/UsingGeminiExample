@@ -65,4 +65,17 @@
         app:layout_constraintTop_toBottomOf="@id/buttonSendText"
         android:layout_marginTop="8dp" />
 
+    <!-- Button to launch Othello vs Gemini -->
+    <Button
+        android:id="@+id/buttonOthello"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Play Othello vs Gemini"
+        android:backgroundTint="#2E7D32"
+        android:textColor="#FFFFFF"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/buttonUpload"
+        android:layout_marginTop="16dp" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>
