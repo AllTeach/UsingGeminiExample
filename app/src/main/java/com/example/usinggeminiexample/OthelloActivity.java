@@ -1,7 +1,10 @@
 package com.example.usinggeminiexample;
 
+import android.graphics.Color;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.Button;
+import android.widget.GridLayout;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -12,253 +15,264 @@ import org.json.JSONObject;
 import java.util.List;
 
 /**
- * Othello (Reversi) — Player (White) vs Gemini AI (Black).
+ * OthelloActivity - MVP "Presenter + View" layer.
  *
- * Architecture: MVP-lite
- *   Model      → OthelloBoard
- *   View       → OthelloBoardView  +  TextViews
- *   Presenter  → this Activity
+ * Human  = WHITE discs  (plays by tapping highlighted squares)
+ * Gemini = BLACK discs  (plays via Gemini API with JSON-schema response)
+ *
+ * Architecture:
+ *   Model     -> OthelloModel  (pure Java, no Android deps)
+ *   View      -> this Activity (renders board from model state)
+ *   Presenter -> logic inside this Activity (thin; could be extracted)
  */
 public class OthelloActivity extends AppCompatActivity {
 
-    // ── Replace with your API key ─────────────────────────────────────────────
     private static final String API_KEY = "YOUR_API_KEY_HERE!!!!";
 
-    private OthelloBoard        board;
-    private OthelloBoardView    boardView;
-    private TextView            tvStatus;
-    private TextView            tvScore;
-    private Button              btnRestart;
+    private OthelloModel  model;
+    private GeminiManager geminiManager;
 
-    private GeminiManager       geminiManager;
-    private boolean             geminiThinking = false;
+    private GridLayout gridBoard;
+    private TextView   textViewStatus;
+    private TextView   textViewBlackScore;
+    private TextView   textViewWhiteScore;
+    private TextView   textViewGeminiThinking;
+    private View[][]   cellViews;
 
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
+    private static final int COLOR_EMPTY  = Color.parseColor("#2E7D32");
+    private static final int COLOR_HINT   = Color.parseColor("#A5D6A7");
+    private static final int COLOR_BLACK  = Color.parseColor("#212121");
+    private static final int COLOR_WHITE  = Color.parseColor("#FAFAFA");
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_othello);
 
+        model         = new OthelloModel();
         geminiManager = new GeminiManager(API_KEY);
+        cellViews     = new View[OthelloModel.SIZE][OthelloModel.SIZE];
 
-        boardView  = findViewById(R.id.othelloBoardView);
-        tvStatus   = findViewById(R.id.tvOthelloStatus);
-        tvScore    = findViewById(R.id.tvOthelloScore);
-        btnRestart = findViewById(R.id.btnOthelloRestart);
+        bindViews();
+        buildGrid();
+        renderBoard();
 
-        board = new OthelloBoard();
-        boardView.setBoard(board);
+        Button btnNew = findViewById(R.id.buttonNewGame);
+        btnNew.setOnClickListener(v -> {
+            model.reset();
+            renderBoard();
+            if (model.getCurrentPlayer() == OthelloModel.BLACK) {
+                triggerGeminiMove();
+            }
+        });
 
-        boardView.setOnCellClickListener((row, col) -> onHumanMove(row, col));
-
-        btnRestart.setOnClickListener(v -> startNewGame());
-
-        startNewGame();
+        triggerGeminiMove();
     }
 
-    // ── Game flow ─────────────────────────────────────────────────────────────
+    private void bindViews() {
+        gridBoard              = findViewById(R.id.gridBoard);
+        textViewStatus         = findViewById(R.id.textViewStatus);
+        textViewBlackScore     = findViewById(R.id.textViewBlackScore);
+        textViewWhiteScore     = findViewById(R.id.textViewWhiteScore);
+        textViewGeminiThinking = findViewById(R.id.textViewGeminiThinking);
+    }
 
-    private void startNewGame() {
-        board.reset();
-        geminiThinking = false;
-        refreshUI();
+    private void buildGrid() {
+        gridBoard.removeAllViews();
+        for (int r = 0; r < OthelloModel.SIZE; r++) {
+            for (int c = 0; c < OthelloModel.SIZE; c++) {
+                View cell = new View(this);
+                cell.setBackgroundColor(COLOR_EMPTY);
 
-        // If Gemini (Black) moves first, kick it off automatically
-        if (board.getCurrentTurn() == OthelloBoard.BLACK) {
-            askGeminiForMove();
+                GridLayout.LayoutParams params = new GridLayout.LayoutParams(
+                        GridLayout.spec(r, 1f),
+                        GridLayout.spec(c, 1f)
+                );
+                params.width  = 0;
+                params.height = 0;
+                params.setMargins(2, 2, 2, 2);
+                cell.setLayoutParams(params);
+
+                final int row = r, col = c;
+                cell.setOnClickListener(v -> onCellClicked(row, col));
+
+                cellViews[r][c] = cell;
+                gridBoard.addView(cell);
+            }
         }
     }
 
-    /** Called when the human taps a cell on the board. */
-    private void onHumanMove(int row, int col) {
-        if (geminiThinking) return;
-        if (board.getCurrentTurn() != OthelloBoard.WHITE) return;
+    private void renderBoard() {
+        List<int[]> legalMoves = model.getLegalMoves();
 
-        boolean moved = board.makeMove(row, col, OthelloBoard.WHITE);
-        if (!moved) return;
+        boolean[][] legal = new boolean[OthelloModel.SIZE][OthelloModel.SIZE];
+        for (int[] m : legalMoves) legal[m[0]][m[1]] = true;
 
-        refreshUI();
+        for (int r = 0; r < OthelloModel.SIZE; r++) {
+            for (int c = 0; c < OthelloModel.SIZE; c++) {
+                View cell = cellViews[r][c];
+                int  val  = model.getCell(r, c);
 
-        if (board.isGameOver()) {
-            showGameOver();
-            return;
+                if (val == OthelloModel.BLACK) {
+                    drawDisc(cell, COLOR_BLACK);
+                } else if (val == OthelloModel.WHITE) {
+                    drawDisc(cell, COLOR_WHITE);
+                } else if (legal[r][c] && model.getCurrentPlayer() == OthelloModel.WHITE) {
+                    cell.setBackgroundColor(COLOR_HINT);
+                } else {
+                    cell.setBackgroundColor(COLOR_EMPTY);
+                }
+            }
         }
+        updateStatusText();
+    }
 
-        if (board.getCurrentTurn() == OthelloBoard.BLACK) {
-            askGeminiForMove();
+    private void drawDisc(View cell, int color) {
+        android.graphics.drawable.GradientDrawable circle =
+                new android.graphics.drawable.GradientDrawable();
+        circle.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        circle.setColor(color);
+        circle.setStroke(3, Color.parseColor("#424242"));
+        cell.setBackground(circle);
+    }
+
+    private void updateStatusText() {
+        int black = model.countDiscs(OthelloModel.BLACK);
+        int white = model.countDiscs(OthelloModel.WHITE);
+        textViewBlackScore.setText("\u26AB Black (Gemini): " + black);
+        textViewWhiteScore.setText("\u26AA White (You): "    + white);
+
+        if (model.isGameOver()) {
+            int winner = model.getWinner();
+            String msg;
+            if      (winner == OthelloModel.WHITE) msg = "You win! (" + white + " vs " + black + ")";
+            else if (winner == OthelloModel.BLACK) msg = "Gemini wins! (" + black + " vs " + white + ")";
+            else                                   msg = "It's a draw! (" + white + " each)";
+            textViewStatus.setText(msg);
         } else {
-            // Black had no moves — human plays again
-            refreshUI();
+            String turn = (model.getCurrentPlayer() == OthelloModel.WHITE)
+                    ? "Your turn (White)"
+                    : "Gemini's turn (Black)";
+            textViewStatus.setText(turn);
         }
     }
 
-    // ── Gemini integration ────────────────────────────────────────────────────
+    private void onCellClicked(int row, int col) {
+        if (model.getCurrentPlayer() != OthelloModel.WHITE) return;
+        if (model.isGameOver()) return;
 
-    private void askGeminiForMove() {
-        geminiThinking = true;
-        tvStatus.setText("🤖 Gemini is thinking…");
-        boardView.setLegalMoves(null); // hide hints while AI thinks
+        List<int[]> flipped = model.applyMove(row, col);
+        if (flipped.isEmpty()) return;
 
-        List<int[]> legalMoves = board.getLegalMoves(OthelloBoard.BLACK);
-        if (legalMoves.isEmpty()) {
-            // Gemini must pass
-            geminiThinking = false;
-            refreshUI();
-            return;
+        renderBoard();
+
+        if (!model.isGameOver() && model.getCurrentPlayer() == OthelloModel.BLACK) {
+            triggerGeminiMove();
         }
+    }
 
-        String prompt = buildGeminiPrompt(legalMoves);
-        String schema = buildResponseSchema();
+    private void triggerGeminiMove() {
+        if (model.isGameOver()) return;
+
+        List<int[]> legalMoves = model.getLegalMoves();
+        if (legalMoves.isEmpty()) return;
+
+        textViewGeminiThinking.setVisibility(View.VISIBLE);
+
+        String     prompt = buildOthelloPrompt();
+        JSONObject schema = buildResponseSchema();
 
         geminiManager.sendTextWithSchema(prompt, schema, response -> {
             runOnUiThread(() -> {
-                geminiThinking = false;
+                textViewGeminiThinking.setVisibility(View.GONE);
                 handleGeminiResponse(response, legalMoves);
             });
         });
     }
 
-    private String buildGeminiPrompt(List<int[]> legalMoves) {
-        // Encode column as letter (A-H), row as number (1-8) for clarity
-        StringBuilder legalStr = new StringBuilder();
-        for (int[] m : legalMoves) {
-            legalStr.append((char) ('A' + m[1]))
-                    .append(m[0] + 1)
-                    .append(", ");
+    private String buildOthelloPrompt() {
+        int[][] board = model.getBoardCopy();
+        List<int[]> legalMoves = model.getLegalMoves();
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("You are playing Othello (Reversi) as the BLACK player.\n");
+        sb.append("Board encoding: 0=empty, 1=WHITE(opponent), -1=BLACK(you).\n\n");
+        sb.append("Current board (row 0 = top, col 0 = left):\n");
+
+        for (int r = 0; r < OthelloModel.SIZE; r++) {
+            sb.append("Row ").append(r).append(": [");
+            for (int c = 0; c < OthelloModel.SIZE; c++) {
+                sb.append(board[r][c]);
+                if (c < OthelloModel.SIZE - 1) sb.append(", ");
+            }
+            sb.append("]\n");
         }
-        if (legalStr.length() > 2)
-            legalStr.setLength(legalStr.length() - 2); // trim trailing ", "
 
-        return "You are playing Othello (Reversi) as the BLACK player.\n" +
-               "The board uses coordinates: columns A-H (left to right), rows 1-8 (top to bottom).\n" +
-               "B = Black (you), W = White (opponent), . = empty.\n\n" +
-               "Current board:\n" + board.toBoardString() + "\n" +
-               "Your legal moves are: " + legalStr + "\n\n" +
-               "Choose the BEST move for Black. " +
-               "Respond ONLY with a JSON object matching the provided schema. " +
-               "The 'row' field is 0-indexed (0-7) and 'col' is 0-indexed (0-7). " +
-               "For example, A1 = row:0, col:0.  D4 = row:3, col:3.";
+        sb.append("\nYour legal moves (row, col):\n");
+        for (int[] move : legalMoves)
+            sb.append("  row=").append(move[0]).append(", col=").append(move[1]).append("\n");
+
+        sb.append("\nChoose the BEST strategic move for BLACK. ");
+        sb.append("Reply ONLY with the JSON object {\"row\": <0-7>, \"col\": <0-7>}.\n");
+        return sb.toString();
     }
 
-    /**
-     * JSON Schema for Gemini's structured output.
-     * Forces the model to reply with {"row": <int>, "col": <int>, "reasoning": "<string>"}
-     */
-    private String buildResponseSchema() {
-        return "{\n" +
-               "  \"type\": \"object\",\n" +
-               "  \"properties\": {\n" +
-               "    \"row\": {\n" +
-               "      \"type\": \"integer\",\n" +
-               "      \"description\": \"0-indexed row of the chosen move (0 = row 1, 7 = row 8)\",\n" +
-               "      \"minimum\": 0,\n" +
-               "      \"maximum\": 7\n" +
-               "    },\n" +
-               "    \"col\": {\n" +
-               "      \"type\": \"integer\",\n" +
-               "      \"description\": \"0-indexed column of the chosen move (0 = col A, 7 = col H)\",\n" +
-               "      \"minimum\": 0,\n" +
-               "      \"maximum\": 7\n" +
-               "    },\n" +
-               "    \"reasoning\": {\n" +
-               "      \"type\": \"string\",\n" +
-               "      \"description\": \"Short explanation of why this move was chosen\"\n" +
-               "    }\n" +
-               "  },\n" +
-               "  \"required\": [\"row\", \"col\", \"reasoning\"]\n" +
-               "}";
-    }
-
-    /** Parse the Gemini JSON response and apply the move. Fall back to first legal move on error. */
-    private void handleGeminiResponse(String rawResponse, List<int[]> legalMoves) {
-        int chosenRow = -1;
-        int chosenCol = -1;
-        String reasoning = "";
-
+    private JSONObject buildResponseSchema() {
         try {
-            if (rawResponse.startsWith("Error") || rawResponse.startsWith("Exception")) {
-                tvStatus.setText("Gemini error: " + rawResponse);
-            } else {
-                // The structured response text is inside candidates[0].content.parts[0].text
-                JSONObject root = new JSONObject(rawResponse);
-                JSONArray candidates = root.getJSONArray("candidates");
-                JSONObject content = candidates.getJSONObject(0).getJSONObject("content");
-                String text = content.getJSONArray("parts").getJSONObject(0).getString("text");
+            JSONObject schema = new JSONObject();
+            schema.put("type", "object");
 
-                JSONObject move = new JSONObject(text);
-                chosenRow = move.getInt("row");
-                chosenCol = move.getInt("col");
-                reasoning = move.optString("reasoning", "");
-            }
+            JSONObject properties = new JSONObject();
+            JSONObject rowProp = new JSONObject();
+            rowProp.put("type", "integer");
+            properties.put("row", rowProp);
+
+            JSONObject colProp = new JSONObject();
+            colProp.put("type", "integer");
+            properties.put("col", colProp);
+
+            schema.put("properties", properties);
+
+            JSONArray required = new JSONArray();
+            required.put("row");
+            required.put("col");
+            schema.put("required", required);
+
+            return schema;
         } catch (Exception e) {
-            // JSON parse failure → fall back to first legal move
-            chosenRow = -1;
-        }
-
-        // Validate that the returned move is actually legal
-        boolean valid = false;
-        if (chosenRow >= 0) {
-            for (int[] m : legalMoves) {
-                if (m[0] == chosenRow && m[1] == chosenCol) {
-                    valid = true;
-                    break;
-                }
-            }
-        }
-
-        // Fall back to first legal move if Gemini returned something invalid
-        if (!valid) {
-            chosenRow = legalMoves.get(0)[0];
-            chosenCol = legalMoves.get(0)[1];
-            reasoning = "(fallback — first legal move)";
-        }
-
-        board.makeMove(chosenRow, chosenCol, OthelloBoard.BLACK);
-
-        String colLetter = String.valueOf((char) ('A' + chosenCol));
-        tvStatus.setText("🤖 Gemini played " + colLetter + (chosenRow + 1) +
-                         (reasoning.isEmpty() ? "" : "\n" + reasoning));
-
-        refreshUI();
-
-        if (board.isGameOver()) {
-            showGameOver();
+            return null;
         }
     }
 
-    // ── UI helpers ────────────────────────────────────────────────────────────
+    private void handleGeminiResponse(String rawResponse, List<int[]> legalMoves) {
+        try {
+            JSONObject root       = new JSONObject(rawResponse);
+            JSONArray  candidates = root.getJSONArray("candidates");
+            JSONObject content    = candidates.getJSONObject(0).getJSONObject("content");
+            JSONArray  parts      = content.getJSONArray("parts");
+            String     text       = parts.getJSONObject(0).getString("text").trim();
 
-    private void refreshUI() {
-        boardView.setBoard(board);
+            JSONObject move = new JSONObject(text);
+            int row = move.getInt("row");
+            int col = move.getInt("col");
 
-        int[] score = board.getScore();
-        tvScore.setText("⬜ You (White): " + score[0] + "   ⬛ Gemini (Black): " + score[1]);
+            boolean valid = false;
+            for (int[] m : legalMoves)
+                if (m[0] == row && m[1] == col) { valid = true; break; }
 
-        if (board.isGameOver()) {
-            showGameOver();
-            return;
-        }
+            if (!valid) {
+                row = legalMoves.get(0)[0];
+                col = legalMoves.get(0)[1];
+            }
 
-        int turn = board.getCurrentTurn();
-        if (turn == OthelloBoard.WHITE && !geminiThinking) {
-            List<int[]> legalMoves = board.getLegalMoves(OthelloBoard.WHITE);
-            boardView.setLegalMoves(legalMoves);
-            tvStatus.setText("Your turn (White) — tap a highlighted square");
-        } else if (turn == OthelloBoard.BLACK) {
-            boardView.setLegalMoves(null);
-            if (!geminiThinking) {
-                tvStatus.setText("🤖 Gemini's turn (Black)…");
+            model.applyMove(row, col);
+            renderBoard();
+
+        } catch (Exception e) {
+            if (!legalMoves.isEmpty()) {
+                model.applyMove(legalMoves.get(0)[0], legalMoves.get(0)[1]);
+                renderBoard();
             }
         }
-    }
-
-    private void showGameOver() {
-        boardView.setLegalMoves(null);
-        int[] score = board.getScore();
-        String result;
-        if (score[0] > score[1])      result = "🎉 You win! " + score[0] + " – " + score[1];
-        else if (score[1] > score[0]) result = "🤖 Gemini wins! " + score[1] + " – " + score[0];
-        else                          result = "It's a draw! " + score[0] + " – " + score[1];
-        tvStatus.setText("Game Over — " + result);
     }
 }
