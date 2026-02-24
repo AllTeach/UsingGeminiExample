@@ -14,7 +14,6 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
-import java.io.OutputStream;
 
 public class GeminiManager {
 
@@ -75,9 +74,81 @@ public class GeminiManager {
                     String respBody = response.body() != null ? response.body().string() : "";
 
                     if (!response.isSuccessful()) {
-                        // Log specifically for 429 or 404
                         String errorMsg = "Error " + response.code() + ": " + respBody;
                         callback.onResponse(errorMsg);
+                        return;
+                    }
+                    callback.onResponse(respBody);
+                }
+            } catch (Exception e) {
+                callback.onResponse("Exception: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    /**
+     * Sends a text prompt to Gemini with a JSON Schema constraint on the response.
+     *
+     * The responseSchema JSONObject is passed as generationConfig.response_schema,
+     * and responseMimeType is set to "application/json" so that Gemini returns
+     * a clean JSON object that can be parsed directly.
+     *
+     * Example schema for Othello move:
+     * {
+     *   "type": "object",
+     *   "properties": {
+     *     "row": { "type": "integer" },
+     *     "col": { "type": "integer" }
+     *   },
+     *   "required": ["row", "col"]
+     * }
+     */
+    public void sendTextWithSchema(String inputText, JSONObject responseSchema,
+                                   @NonNull GeminiCallback callback) {
+        new Thread(() -> {
+            try {
+                // Build the contents array
+                JSONObject root = new JSONObject();
+                JSONArray contents = new JSONArray();
+                JSONObject contentObj = new JSONObject();
+                JSONArray parts = new JSONArray();
+                JSONObject part = new JSONObject();
+
+                part.put("text", inputText);
+                parts.put(part);
+                contentObj.put("parts", parts);
+                contents.put(contentObj);
+                root.put("contents", contents);
+
+                // Add generationConfig with JSON schema constraint
+                if (responseSchema != null) {
+                    JSONObject generationConfig = new JSONObject();
+                    generationConfig.put("responseMimeType", "application/json");
+                    generationConfig.put("responseSchema", responseSchema);
+                    root.put("generationConfig", generationConfig);
+                }
+
+                MediaType jsonMediaType = MediaType.parse("application/json; charset=utf-8");
+                RequestBody body = RequestBody.create(root.toString(), jsonMediaType);
+
+                HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL).newBuilder();
+                if (credential != null && !credential.startsWith("ya29")) {
+                    urlBuilder.addQueryParameter("key", credential);
+                }
+
+                Request.Builder reqBuilder = new Request.Builder().url(urlBuilder.build());
+                if (credential != null && credential.startsWith("ya29")) {
+                    reqBuilder.addHeader("Authorization", "Bearer " + credential);
+                }
+
+                Request request = reqBuilder.post(body)
+                        .addHeader("Content-Type", "application/json")
+                        .build();
+
+                try (Response response = httpClient.newCall(request).execute()) {
+                    String respBody = response.body() != null ? response.body().string() : "";
+                    if (!response.isSuccessful()) {
+                        callback.onResponse("Error " + response.code() + ": " + respBody);
                         return;
                     }
                     callback.onResponse(respBody);
@@ -93,7 +164,7 @@ public class GeminiManager {
             try {
                 // 1. Convert Bitmap to Base64
                 ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 80, byteArrayOutputStream); // 80% quality to save quota/bandwidth
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 80, byteArrayOutputStream);
                 byte[] byteArray = byteArrayOutputStream.toByteArray();
                 String base64Image = Base64.encodeToString(byteArray, Base64.NO_WRAP);
 
@@ -120,11 +191,10 @@ public class GeminiManager {
                 contents.put(contentObj);
                 root.put("contents", contents);
 
-                // 3. Make the Request (reuse your existing OkHttp logic)
+                // 3. Make the Request
                 MediaType jsonMediaType = MediaType.parse("application/json; charset=utf-8");
                 RequestBody body = RequestBody.create(root.toString(), jsonMediaType);
 
-                // Note: Use Gemini 2.5 Flash as it handles images much better than older versions
                 String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + credential;
 
                 Request request = new Request.Builder()

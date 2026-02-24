@@ -1,5 +1,4 @@
 import java.util.Properties
-import java.io.FileInputStream
 
 plugins {
     alias(libs.plugins.android.application)
@@ -29,7 +28,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // 2. Inject the key into BuildConfig
-        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+       buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
     }
     // 3. Enable BuildConfig generation
     buildFeatures {
@@ -58,7 +57,13 @@ dependencies {
     implementation(libs.constraintlayout)
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
     implementation("org.json:json:20230227")
-// Google API client dependency
+    implementation("com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava")
+    // --- FIX STARTS HERE ---
+    // Use the specific Prompt API (Alpha) for Gemini Nano
+    implementation("com.google.mlkit:genai-prompt:1.0.0-alpha1")
+
+    // Guava for Java Future support (Required for Java implementation)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
